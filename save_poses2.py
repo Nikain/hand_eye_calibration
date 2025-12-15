@@ -9,22 +9,56 @@ import csv
 import numpy as np
 
 
+def _normalize_calibration_data(calibration_data, angles_in_degrees=False):
+    """Normalize calibration data into (x, y, z, rx, ry, rz) tuples.
+
+    Args:
+        calibration_data: Iterable containing either 6 or 7 values per entry.
+            If 7 values are present, the first value is treated as an image
+            filename and ignored for pose construction.
+        angles_in_degrees: When True, convert rx/ry/rz from degrees to radians.
+
+    Returns:
+        list[tuple]: Normalized pose tuples with angles in radians.
+    """
+
+    normalized = []
+    for entry in calibration_data:
+        if len(entry) == 7:
+            _, x, y, z, rx, ry, rz = entry
+        elif len(entry) == 6:
+            x, y, z, rx, ry, rz = entry
+        else:
+            raise ValueError(
+                "Calibration data must contain either 6 values (x, y, z, rx, ry, rz) "
+                "or 7 values with a filename prefix."
+            )
+
+        if angles_in_degrees:
+            rx, ry, rz = np.deg2rad([rx, ry, rz])
+
+        normalized.append((x, y, z, rx, ry, rz))
+
+    return normalized
+
+
 # 打开文本文件
-def poses2_main(tag):
+def poses2_main(tag=None, calibration_data=None, angles_in_degrees=False):
 
 
-    with open(f"{tag}", "r",encoding="utf-8") as f:
-        # 读取文件中的所有行
-        lines = f.readlines()
-    # 定义一个空列表，用于存储结果
-
-    # 遍历每一行数据
-    lines = [float(i)  for line in lines for i in line.split(',')]
+    if calibration_data is not None:
+        pose_entries = _normalize_calibration_data(calibration_data, angles_in_degrees)
+    else:
+        with open(f"{tag}", "r",encoding="utf-8") as f:
+            # 读取文件中的所有行
+            lines = f.readlines()
+        pose_entries = [float(i)  for line in lines for i in line.split(',')]
+        pose_entries = [pose_entries[i:i + 6] for i in range(0, len(pose_entries), 6)]
 
     matrices = []
 
-    for i in range(0,len(lines),6):
-        matrices.append(inverse_transformation_matrix(pose_to_homogeneous_matrix(lines[i:i+6])))
+    for pose in pose_entries:
+        matrices.append(inverse_transformation_matrix(pose_to_homogeneous_matrix(pose)))
 
 
     # 将齐次变换矩阵列表存储到 CSV 文件中

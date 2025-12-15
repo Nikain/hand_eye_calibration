@@ -18,6 +18,11 @@ from libs.log_setting import CommonLog
 
 from save_poses import poses_main
 
+try:
+    from calibration_data import CALIBRATION_DATA
+except ImportError:  # pragma: no cover - optional convenience import
+    CALIBRATION_DATA = None
+
 np.set_printoptions(precision=8,suppress=True)
 
 logger_ = logging.getLogger(__name__)
@@ -55,9 +60,14 @@ def func():
 
     images_num = [f for f in os.listdir(images_path) if f.endswith('.jpg')]
 
-    for i in range(1, len(images_num) + 1):   #标定好的图片在images_path路径下，从0.jpg到x.jpg
+    if CALIBRATION_DATA:
+        ordered_images = [entry[0] for entry in CALIBRATION_DATA]
+    else:
+        ordered_images = [f"{i}.jpg" for i in range(1, len(images_num) + 1)]
 
-        image_file = os.path.join(images_path,f"{i}.jpg")
+    for image_name in ordered_images:   # 标定好的图片在images_path路径下，从0.jpg到x.jpg
+
+        image_file = os.path.join(images_path, image_name)
 
         if os.path.exists(image_file):
 
@@ -89,7 +99,10 @@ def func():
 
     print("-----------------------------------------------------")
 
-    poses_main(file_path)
+    if CALIBRATION_DATA:
+        poses_main(calibration_data=CALIBRATION_DATA, angles_in_degrees=True)
+    else:
+        poses_main(file_path)
     # 机器人末端在基座标系下的位姿
 
     csv_file = os.path.join(path,"RobotToolPose.csv")
