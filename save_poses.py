@@ -58,21 +58,59 @@ def save_matrices_to_csv(matrices, file_name):
             csv_writer.writerow(row)
 
 
-def poses_main(filepath):
+def _normalize_calibration_data(calibration_data, angles_in_degrees=False):
+    """Normalize calibration data into (x, y, z, rx, ry, rz) tuples.
 
-    # 打开文本文件
-    with open(filepath, "r", encoding="utf-8") as f:
-        # 读取文件中的所有行
-        lines = f.readlines()
-    # 定义一个空列表，用于存储结果
+    Args:
+        calibration_data: Iterable containing either 6 or 7 values per entry.
+            If 7 values are present, the first value is treated as an image
+            filename and ignored for pose construction.
+        angles_in_degrees: When True, convert rx/ry/rz from degrees to radians.
 
-    # 遍历每一行数据
-    lines = [float(i) for line in lines for i in line.split(',')]
+    Returns:
+        list[tuple]: Normalized pose tuples with angles in radians.
+    """
 
-    matrices = []
-    for i in range(0,len(lines),6):
-        matrices.append(pose_to_homogeneous_matrix(lines[i:i+6]))
+    normalized = []
+    for entry in calibration_data:
+        if len(entry) == 7:
+            _, x, y, z, rx, ry, rz = entry
+        elif len(entry) == 6:
+            x, y, z, rx, ry, rz = entry
+        else:
+            raise ValueError(
+                "Calibration data must contain either 6 values (x, y, z, rx, ry, rz) "
+                "or 7 values with a filename prefix."
+            )
 
+        if angles_in_degrees:
+            rx, ry, rz = np.deg2rad([rx, ry, rz])
+
+        normalized.append((x, y, z, rx, ry, rz))
+
+    return normalized
+
+
+def poses_main(filepath=None, calibration_data=None, angles_in_degrees=False):
+    """Generate homogeneous matrices from pose data and save to CSV.
+
+    Args:
+        filepath (str, optional): Path to a text file containing pose data.
+        calibration_data (iterable, optional): In-memory calibration data
+            entries (6 or 7 values). When provided, ``filepath`` is ignored.
+        angles_in_degrees (bool): Whether the RX/RY/RZ angles need conversion
+            from degrees to radians.
+    """
+
+    if calibration_data is not None:
+        pose_entries = _normalize_calibration_data(calibration_data, angles_in_degrees)
+    else:
+        with open(filepath, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        pose_entries = [float(i) for line in lines for i in line.split(',')]
+        pose_entries = [pose_entries[i:i + 6] for i in range(0, len(pose_entries), 6)]
+
+    matrices = [pose_to_homogeneous_matrix(pose) for pose in pose_entries]
 
     # 将齐次变换矩阵列表存储到 CSV 文件中
     save_matrices_to_csv(matrices, f'RobotToolPose.csv')
